@@ -1,6 +1,6 @@
 """Vector database integration with Pinecone."""
 from typing import List, Dict
-import pinecone
+from pinecone import Pinecone, ServerlessSpec
 from langchain_openai import OpenAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
 from config import settings
@@ -11,10 +11,9 @@ class VectorDB:
     
     def __init__(self):
         """Initialize Pinecone connection and embeddings."""
-        # Initialize Pinecone
-        pinecone.init(
-            api_key=settings.pinecone_api_key,
-            environment=settings.pinecone_environment
+        # Initialize Pinecone client
+        self.pc = Pinecone(
+            api_key=settings.pinecone_api_key
         )
         
         # Initialize OpenAI embeddings
@@ -29,11 +28,13 @@ class VectorDB:
     
     def _ensure_index_exists(self):
         """Ensure the Pinecone index exists."""
-        if self.index_name not in pinecone.list_indexes():
-            pinecone.create_index(
+        existing_indexes = [index.name for index in self.pc.list_indexes()]
+        if self.index_name not in existing_indexes:
+            self.pc.create_index(
                 name=self.index_name,
                 dimension=1536,  # OpenAI embedding dimension
-                metric="cosine"
+                metric="cosine",
+                spec=ServerlessSpec(cloud="aws", region=settings.pinecone_environment)
             )
     
     def store_chunks(self, chunks: List[Dict], textbook_metadata: Dict):
@@ -113,7 +114,7 @@ class VectorDB:
         Args:
             textbook_id: ID of the textbook to delete
         """
-        index = pinecone.Index(self.index_name)
+        index = self.pc.Index(self.index_name)
         
         # Delete by filtering on textbook_id
         index.delete(filter={"textbook_id": textbook_id})
