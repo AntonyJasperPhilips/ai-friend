@@ -49,26 +49,33 @@ git clone https://github.com/AntonyJasperPhilips/ai-friend.git
 cd ai-friend
 ```
 
-2. Install dependencies:
+2. Run the setup script (recommended):
+```bash
+./setup.sh
+```
+
+Or install manually:
+
+3. Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Install Tesseract OCR:
+4. Install Tesseract OCR:
    - **Ubuntu/Debian**: `sudo apt-get install tesseract-ocr`
    - **macOS**: `brew install tesseract`
    - **Windows**: Download from [GitHub](https://github.com/UB-Mannheim/tesseract/wiki)
 
-4. Create a `.env` file from the example:
+5. Create a `.env` file from the example:
 ```bash
 cp .env.example .env
 ```
 
-5. Configure your `.env` file with your API keys:
+6. Configure your `.env` file with your API keys:
 ```env
 OPENAI_API_KEY=your_openai_api_key_here
 PINECONE_API_KEY=your_pinecone_api_key_here
-PINECONE_ENVIRONMENT=your_pinecone_environment_here
+PINECONE_ENVIRONMENT=us-east-1
 ```
 
 ### Running the Application
@@ -142,6 +149,23 @@ curl -X POST "http://localhost:8000/api/v1/questions/ask" \
     "student_grade_level": "high_school"
   }'
 ```
+
+### Python Example Script
+
+A complete Python example is provided in `example_usage.py`:
+
+```bash
+python example_usage.py
+```
+
+This script demonstrates:
+- Health checking
+- Listing textbooks
+- Uploading textbooks
+- Asking questions
+- Deleting textbooks
+
+For more detailed examples and usage, see [API_USAGE.md](API_USAGE.md).
 
 ## How It Works
 
