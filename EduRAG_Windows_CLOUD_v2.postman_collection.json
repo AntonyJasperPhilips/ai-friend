@@ -1,0 +1,163 @@
+{
+  "info": {
+    "name": "Edu RAG \u2013 FastAPI (Windows CLOUD v2)",
+    "_postman_id": "edurag-win-cloud-v2",
+    "description": "Cloud mode: requires OpenAI, Pinecone, AWS S3 keys",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "http://localhost:8080/health",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8080",
+          "path": [
+            "health"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Ingest Unit",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"bookId\": 1,\n  \"chapterId\": 1,\n  \"unitId\": 1,\n  \"pageStart\": 1,\n  \"pageEnd\": 1,\n  \"languageCode\": \"en\",\n  \"subject\": \"Science\",\n  \"gradeLevel\": \"Grade 6\",\n  \"pdfPath\": \"./sample.pdf\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8080/ingest/unit",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8080",
+          "path": [
+            "ingest",
+            "unit"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Preview",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "http://localhost:8080/ingest/job/1/preview",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8080",
+          "path": [
+            "ingest",
+            "job",
+            "1",
+            "preview"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Approve",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "http://localhost:8080/ingest/job/1/approve",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8080",
+          "path": [
+            "ingest",
+            "job",
+            "1",
+            "approve"
+          ]
+        }
+      }
+    },
+    {
+      "name": "List Unit Chunks",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "http://localhost:8080/admin/unit/1/chunks",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8080",
+          "path": [
+            "admin",
+            "unit",
+            "1",
+            "chunks"
+          ]
+        }
+      }
+    },
+    {
+      "name": "List Unit Images",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "http://localhost:8080/admin/unit/1/images",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8080",
+          "path": [
+            "admin",
+            "unit",
+            "1",
+            "images"
+          ]
+        }
+      }
+    },
+    {
+      "name": "QA Query",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"question\": \"State the photosynthesis equation.\",\n  \"bookId\": 1,\n  \"chapterId\": 1,\n  \"unitId\": 1,\n  \"subject\": \"Science\",\n  \"gradeLevel\": \"Grade 6\",\n  \"languageCode\": \"en\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8080/qa/query",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8080",
+          "path": [
+            "qa",
+            "query"
+          ]
+        }
+      }
+    }
+  ]
+}
