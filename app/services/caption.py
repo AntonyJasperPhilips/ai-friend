@@ -1,9 +1,10 @@
 
 import base64
+from typing import Optional
 from openai import OpenAI
 from app.core.config import settings
 
-def caption_image_bytes(image_bytes: bytes) -> str | None:
+def caption_image_bytes(image_bytes: bytes) -> Optional[str]:
     """Uses GPT-4o vision to caption an image. Returns a concise, caption-style sentence."""
     client = OpenAI(api_key=settings.OPENAI_API_KEY)
     b64 = base64.b64encode(image_bytes).decode("utf-8")

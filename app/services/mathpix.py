@@ -1,10 +1,11 @@
 
 import base64, requests
+from typing import Optional
 from app.core.config import settings
 
 MATHPIX_URL = "https://api.mathpix.com/v3/text"
 
-def extract_latex_from_image(image_bytes:bytes) -> str|None:
+def extract_latex_from_image(image_bytes:bytes) -> Optional[str]:
     if not settings.USE_MATHPIX:
         return None
     if not settings.MATHPIX_APP_ID or not settings.MATHPIX_APP_KEY:
