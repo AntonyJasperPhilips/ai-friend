@@ -10,6 +10,29 @@
 3) Run `run_app.bat` again.
 4) Open http://localhost:8080/docs
 
+## Local Setup
+Steps to run the ai application
+
+Need to create venv file (mandatory)
+> python -m venv venv
+
+1. After Creating the venv need to activate the venv
+> .\venv\Scripts\activate
+
+this command shoxuld run if error regarding PowerShell:
+> .\venv\Scripts\activate.ps1
+
+2. After activating need to install all the dependencies
+> python install -r requirements.txt
+
+3. After the install u need to create `.env` file and paste the details of the configuration 
+
+4.	After that run the command
+> uvicorn main:app –reload
+
+5.	Now if u want to close u can use `ctrl + C` and want to move out of `venv` can write this command `deactivate`
+
+
 ## 📊 Architecture
 
 ```
