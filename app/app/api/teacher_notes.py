@@ -19,9 +19,9 @@ def _download_to_temp(url:str) -> str:
 # PDF or URL variant (preview only)
 @router.post("/pdf")
 async def notes_pdf(
-    bookId: int = Form(...),
-    chapterId: int = Form(...),
-    unitId: int = Form(...),
+    bookId: str = Form(...),
+    chapterId: str = Form(...),
+    unitId: str = Form(...),
     pageStart: int = Form(...),
     pageEnd: int = Form(...),
     startText: Optional[str] = Form(None),
@@ -57,7 +57,7 @@ async def notes_pdf(
 
 # Text variant (preview only)
 class NotesTextReq(BaseModel):
-    bookId:int; chapterId:int; unitId:int
+    bookId:str; chapterId:str; unitId:str
     notesText:str; languageCode:str="en"
 
 @router.post("/text")
@@ -74,7 +74,7 @@ async def notes_text(req: NotesTextReq):
 
 # Approve (store as teacher_note vectors, namespaced by bookId)
 class NotesApproveReq(BaseModel):
-    bookId:int; chapterId:int; unitId:int
+    bookId:str; chapterId:str; unitId:str
     subject:str; gradeLevel:str; languageCode:str="en"
     chunks: List[str]
 

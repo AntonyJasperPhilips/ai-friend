@@ -27,12 +27,12 @@ def s3():
         logger.error(f"Failed to create S3 client: {e}")
         raise ValueError(f"Invalid S3 configuration: {e}") from e
 
-def key_for_image(book_id:int, chapter_id:int, unit_id:int, ext:str="png") -> tuple[str, str]:
+def key_for_image(book_id:str, chapter_id:str, unit_id:str, ext:str="png") -> tuple[str, str]:
     image_id = str(uuid.uuid4())
     key = f"content-management-books/{book_id}/{chapter_id}/{unit_id}/images/{image_id}.{ext}"
     return key, image_id
 
-def upload_image_bytes(data:bytes, mimetype:str, book_id:int, chapter_id:int, unit_id:int):
+def upload_image_bytes(data:bytes, mimetype:str, book_id:str, chapter_id:str, unit_id:str):
     key, image_id = key_for_image(book_id, chapter_id, unit_id, "png" if mimetype.endswith("png") else "jpg")
     s3().put_object(Bucket=settings.S3_BUCKET, Key=key, Body=data, ContentType=mimetype)
     return f"s3://{settings.S3_BUCKET}/{key}", image_id, key

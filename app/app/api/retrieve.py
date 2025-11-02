@@ -9,7 +9,7 @@ from app.services.s3util import presign_get
 router = APIRouter(prefix="/qa", tags=["qa"])
 
 class QAReq(BaseModel):
-    question:str; bookId:int; chapterId:int; unitId:int
+    question:str; bookId:str; chapterId:str; unitId:str
     subject:str; gradeLevel:str; languageCode:str="en"
     topK:int=5; imageTopK:int=3
 

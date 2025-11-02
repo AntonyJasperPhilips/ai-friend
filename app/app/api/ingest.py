@@ -25,9 +25,9 @@ def _download_to_temp(url:str) -> str:
 
 @router.post("/unit")
 async def ingest_unit_multipart(
-    bookId: int = Form(...),
-    chapterId: int = Form(...),
-    unitId: int = Form(...),
+    bookId: str = Form(...),
+    chapterId: str = Form(...),
+    unitId: str = Form(...),
     pageStart: int = Form(...),
     pageEnd: int = Form(...),
     startText: Optional[str] = Form(None),
@@ -132,7 +132,7 @@ async def ingest_unit_multipart(
             except Exception: pass
 
 class ApproveReq(BaseModel):
-    bookId:int; chapterId:int; unitId:int
+    bookId:str; chapterId:str; unitId:str
     subject:str; gradeLevel:str; languageCode:str="en"
     chunks: List[str]
     images: Optional[List[dict]] = None
