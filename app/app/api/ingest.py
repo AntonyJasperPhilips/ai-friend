@@ -1,8 +1,8 @@
 
-import os, uuid, tempfile, fitz, requests
+import os, uuid, tempfile, fitz, requests, time
 import logging
 from typing import Optional, List
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from app.services.extract_pdf import extract_pages, apply_boundaries, find_inline_latex, extract_image_data
 from app.services.chunker import split_semantic
@@ -15,6 +15,14 @@ from app.services.mathpix import extract_latex_from_image
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+# Cost tracking
+_openai_cost_tracker = {
+    "daily_spent": 0.0,
+    "last_reset": time.time(),
+    "total_images_today": 0,
+    "total_chunks_today": 0
+}
 
 router = APIRouter(prefix="/ingest", tags=["ingestion:book-content"])
 
@@ -151,8 +159,117 @@ class ApproveReq(BaseModel):
     latex: Optional[List[str]] = None
     unitInstructions: Optional[str] = None
 
+def _reset_cost_tracker_if_needed():
+    """Reset daily cost tracker if 24 hours have passed."""
+    daily_limit = 86400  # 24 hours in seconds
+    if time.time() - _openai_cost_tracker["last_reset"] > daily_limit:
+        _openai_cost_tracker["daily_spent"] = 0.0
+        _openai_cost_tracker["last_reset"] = time.time()
+        _openai_cost_tracker["total_images_today"] = 0
+        _openai_cost_tracker["total_chunks_today"] = 0
+        logger.info("Daily cost tracker reset")
+
+def _process_images_sync(images: List[dict], book_id: str, chapter_id: str, unit_id: str, 
+                        subject: str, grade_level: str, language_code: str):
+    """Process images synchronously."""
+    logger.info(f"Processing {len(images)} images synchronously for unit {unit_id}")
+    
+    try:
+        # Fetch images from S3
+        image_bytes_list = []
+        image_metadata_list = []
+        
+        for img_info in images:
+            try:
+                s3_uri = img_info.get("s3Uri")
+                if not s3_uri:
+                    logger.warning(f"Image {img_info.get('imageId')} has no S3 URI, skipping")
+                    continue
+                
+                img_bytes = fetch_image_from_s3(s3_uri)
+                image_bytes_list.append(img_bytes)
+                image_metadata_list.append(img_info)
+            except Exception as e:
+                logger.error(f"Failed to fetch image {img_info.get('imageId')} from S3: {e}")
+                continue
+        
+        # Embed all images
+        if image_bytes_list:
+            try:
+                embeddings = embed_images(image_bytes_list)
+                logger.info(f"Generated {len(embeddings)} image embeddings")
+                
+                # Create image vectors for Pinecone
+                image_vectors = []
+                for i, (emb, img_info) in enumerate(zip(embeddings, image_metadata_list)):
+                    img_vec = {
+                        "id": f"chap:{chapter_id}:unit:{unit_id}:img:{img_info.get('imageId')}",
+                        "values": emb,
+                        "metadata": {
+                            "type": "image",
+                            "unit_id": unit_id,
+                            "chapter_id": chapter_id,
+                            "subject": subject,
+                            "grade": grade_level,
+                            "language": language_code,
+                            "s3_uri": img_info.get("s3Uri"),
+                            "caption": img_info.get("caption", ""),
+                            "page": img_info.get("pageNo"),
+                            "image_id": img_info.get("imageId")
+                        }
+                    }
+                    image_vectors.append(img_vec)
+                
+                # Upsert to Pinecone image index
+                upsert_image_vectors(image_vectors, namespace=str(book_id))
+                logger.info(f"Upserted {len(image_vectors)} image vectors to Pinecone")
+                
+            except Exception as e:
+                logger.error(f"Failed to embed images: {e}", exc_info=True)
+    
+    except Exception as e:
+        logger.error(f"Image processing failed for unit {unit_id}: {e}", exc_info=True)
+
+async def process_images_background(images: List[dict], book_id: str, chapter_id: str, unit_id: str, 
+                                   subject: str, grade_level: str, language_code: str):
+    """Process images asynchronously in background."""
+    logger.info(f"Background processing {len(images)} images for unit {unit_id}")
+    _process_images_sync(images, book_id, chapter_id, unit_id, subject, grade_level, language_code)
+
 @router.post("/approve")
-async def approve(req:ApproveReq):
+async def approve(req:ApproveReq, background_tasks: BackgroundTasks = None):
+    """Approve unit and store in Pinecone. Optionally process images asynchronously."""
+    global _openai_cost_tracker
+    
+    # Reset cost tracker if needed
+    _reset_cost_tracker_if_needed()
+    
+    # Validate image limit
+    image_count = len(req.images) if req.images else 0
+    if image_count > settings.MAX_IMAGES_PER_UNIT:
+        raise HTTPException(
+            400, 
+            f"Too many images: {image_count}. Maximum allowed: {settings.MAX_IMAGES_PER_UNIT}"
+        )
+    
+    # Estimate and check costs if tracking enabled
+    if settings.ENABLE_COST_TRACKING:
+        estimated_cost = (
+            len(req.chunks) * 0.00013 +  # Text embeddings
+            (len(req.latex) * 0.00013 if req.latex else 0) +  # LaTeX embeddings
+            (image_count * 0.01 if settings.ENABLE_IMAGE_CAPTIONS else 0)  # Image captions (expensive)
+        )
+        
+        if _openai_cost_tracker["daily_spent"] + estimated_cost > settings.OPENAI_API_BUDGET_DAILY:
+            raise HTTPException(
+                429, 
+                f"Daily budget exceeded. Used: ${_openai_cost_tracker['daily_spent']:.2f}/{settings.OPENAI_API_BUDGET_DAILY}. "
+                f"Required: ${estimated_cost:.2f}"
+            )
+        
+        _openai_cost_tracker["daily_spent"] += estimated_cost
+        _openai_cost_tracker["total_chunks_today"] += len(req.chunks)
+    
     # Process text chunks
     vectors=[]
     for i, text in enumerate(req.chunks, start=1):
@@ -172,6 +289,12 @@ async def approve(req:ApproveReq):
         })
     upsert_text_vectors(vectors, namespace=str(req.bookId))
     logger.info(f"Upserted {len(vectors)} text chunks to Pinecone")
+    
+    if settings.ENABLE_COST_TRACKING:
+        logger.warning(
+            f"Cost tracking: ${_openai_cost_tracker['daily_spent']:.2f}/{settings.OPENAI_API_BUDGET_DAILY} spent, "
+            f"{_openai_cost_tracker['total_chunks_today']} chunks today, {image_count} images queued"
+        )
     
     # Process LaTeX formulas - embed and store in Pinecone text index
     latex_vectors = []
@@ -206,63 +329,31 @@ async def approve(req:ApproveReq):
         except Exception as e:
             logger.error(f"Failed to embed LaTeX formulas: {e}", exc_info=True)
     
-    # Process images - embed and store in Pinecone image index
-    image_vectors = []
+    # Process images - either sync or async based on config
     if req.images and len(req.images) > 0:
-        logger.info(f"Processing {len(req.images)} images for embedding")
-        
-        # Fetch images from S3 and prepare for embedding
-        image_bytes_list = []
-        image_metadata_list = []
-        
-        for img_info in req.images:
-            try:
-                s3_uri = img_info.get("s3Uri")
-                if not s3_uri:
-                    logger.warning(f"Image {img_info.get('imageId')} has no S3 URI, skipping")
-                    continue
-                
-                # Fetch image bytes from S3
-                img_bytes = fetch_image_from_s3(s3_uri)
-                image_bytes_list.append(img_bytes)
-                image_metadata_list.append(img_info)
-                
-            except Exception as e:
-                logger.error(f"Failed to fetch image {img_info.get('imageId')} from S3: {e}")
-                continue
-        
-        # Embed all images
-        if image_bytes_list:
-            try:
-                embeddings = embed_images(image_bytes_list)
-                logger.info(f"Generated {len(embeddings)} image embeddings")
-                
-                # Create image vectors for Pinecone
-                for i, (emb, img_info) in enumerate(zip(embeddings, image_metadata_list)):
-                    img_vec = {
-                        "id": f"chap:{req.chapterId}:unit:{req.unitId}:img:{img_info.get('imageId')}",
-                        "values": emb,
-                        "metadata": {
-                            "type": "image",
-                            "unit_id": req.unitId,
-                            "chapter_id": req.chapterId,
-                            "subject": req.subject,
-                            "grade": req.gradeLevel,
-                            "language": req.languageCode,
-                            "s3_uri": img_info.get("s3Uri"),
-                            "caption": img_info.get("caption", ""),
-                            "page": img_info.get("pageNo"),
-                            "image_id": img_info.get("imageId")
-                        }
-                    }
-                    image_vectors.append(img_vec)
-                
-                # Upsert to Pinecone image index
-                upsert_image_vectors(image_vectors, namespace=str(req.bookId))
-                logger.info(f"Upserted {len(image_vectors)} image vectors to Pinecone")
-                
-            except Exception as e:
-                logger.error(f"Failed to embed images: {e}", exc_info=True)
+        if settings.PROCESS_IMAGES_ASYNC:
+            # Process images in background for faster response
+            if background_tasks:
+                background_tasks.add_task(
+                    process_images_background,
+                    images=req.images,
+                    book_id=req.bookId,
+                    chapter_id=req.chapterId,
+                    unit_id=req.unitId,
+                    subject=req.subject,
+                    grade_level=req.gradeLevel,
+                    language_code=req.languageCode
+                )
+                logger.info(f"Queued {len(req.images)} images for background processing")
+            else:
+                logger.warning("BackgroundTasks not available, processing images synchronously")
+                # Fallback to sync processing
+                _process_images_sync(req.images, req.bookId, req.chapterId, req.unitId, 
+                                    req.subject, req.gradeLevel, req.languageCode)
+        else:
+            # Synchronous processing
+            _process_images_sync(req.images, req.bookId, req.chapterId, req.unitId, 
+                                req.subject, req.gradeLevel, req.languageCode)
     
     return {
         "unitId": req.unitId,

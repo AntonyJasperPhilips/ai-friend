@@ -25,6 +25,21 @@ class Settings(BaseSettings):
     USE_MATHPIX: bool = False
     MATHPIX_APP_ID: Optional[str] = None
     MATHPIX_APP_KEY: Optional[str] = None
+    
+    # Cost controls
+    MAX_IMAGES_PER_UNIT: int = 100
+    ENABLE_COST_TRACKING: bool = True
+    OPENAI_API_BUDGET_DAILY: float = 100.0  # $100/day max
+    
+    # Chunking
+    CHUNK_SIZE: int = 600
+    CHUNK_OVERLAP: int = 50
+    
+    # Embeddings (use 'large' for best quality, 'small' for 50% cost savings)
+    EMBED_MODEL: str = "text-embedding-3-large"  # or "text-embedding-3-small"
+    
+    # Async processing
+    PROCESS_IMAGES_ASYNC: bool = True
 
     class Config:
         env_file = ".env"

@@ -7,12 +7,12 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-EMBED_MODEL = "text-embedding-3-large"
-
 def embed_texts(texts: List[str]) -> List[List[float]]:
-    """Create embeddings for text using OpenAI's text-embedding-3-large model."""
+    """Create embeddings for text using configured model."""
     client = OpenAI(api_key=settings.OPENAI_API_KEY)
-    resp = client.embeddings.create(model=EMBED_MODEL, input=texts)
+    embed_model = settings.EMBED_MODEL
+    resp = client.embeddings.create(model=embed_model, input=texts)
+    logger.debug(f"Embedded {len(texts)} texts using {embed_model}")
     return [d.embedding for d in resp.data]
 
 def embed_image(image_bytes: bytes) -> List[float]:
