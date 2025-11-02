@@ -18,3 +18,12 @@ def upsert_text_vectors(vectors, namespace:str):
 
 def query_text(vector, top_k=5, metadata_filter=None, namespace:str="default"):
     return text_index().query(vector=vector, top_k=top_k, include_metadata=True, filter=metadata_filter or {}, namespace=namespace)
+
+def delete_text_vectors(ids, namespace:str):
+    """Delete vectors from text index by IDs."""
+    if not ids: return
+    text_index().delete(ids=ids, namespace=namespace)
+
+def delete_text_by_filter(metadata_filter, namespace:str):
+    """Delete vectors from text index by metadata filter."""
+    text_index().delete(filter=metadata_filter, namespace=namespace)

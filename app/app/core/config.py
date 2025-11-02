@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     S3_BUCKET: str = ""
 
     ENABLE_IMAGE_CAPTIONS: bool = True
+    
+    # Mathpix (optional)
+    USE_MATHPIX: bool = False
+    MATHPIX_APP_ID: Optional[str] = None
+    MATHPIX_APP_KEY: Optional[str] = None
 
     class Config:
         env_file = ".env"
