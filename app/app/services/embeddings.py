@@ -81,14 +81,26 @@ def embed_images(image_bytes_list: List[bytes]) -> List[List[float]]:
     embeddings = []
     for i, img_bytes in enumerate(image_bytes_list):
         try:
+            if not img_bytes or len(img_bytes) == 0:
+                logger.error(f"Image {i+1} is empty, skipping")
+                embeddings.append([0.0] * 3072)
+                continue
+                
+            logger.info(f"Embedding image {i+1}/{len(image_bytes_list)} (size: {len(img_bytes)} bytes)")
             emb = embed_image(img_bytes)
-            embeddings.append(emb)
-            logger.debug(f"Embedded image {i+1}/{len(image_bytes_list)}")
+            
+            if not emb or len(emb) == 0:
+                logger.error(f"Empty embedding returned for image {i+1}")
+                embeddings.append([0.0] * 3072)
+            else:
+                embeddings.append(emb)
+                logger.info(f"Successfully embedded image {i+1}/{len(image_bytes_list)}, embedding dimension: {len(emb)}")
         except Exception as e:
-            logger.error(f"Failed to embed image {i+1}: {e}")
-            # Append zero vector as fallback (or skip)
+            logger.error(f"Failed to embed image {i+1}/{len(image_bytes_list)}: {e}", exc_info=True)
+            # Append zero vector as fallback to maintain list alignment
             embeddings.append([0.0] * 3072)
     
+    logger.info(f"Completed embedding process: {len(embeddings)} embeddings generated from {len(image_bytes_list)} images")
     return embeddings
 
 def embed_latex_formulas(latex_formulas: List[str]) -> List[List[float]]:

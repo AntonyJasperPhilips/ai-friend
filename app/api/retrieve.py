@@ -1,5 +1,5 @@
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from openai import OpenAI
 from app.services.embeddings import embed_texts
@@ -76,16 +76,51 @@ async def query(req:QAReq):
     context_str = "\n\n".join(book_ctx + note_ctx + latex_ctx) if (book_ctx or note_ctx or latex_ctx) else "No relevant material found."
     user_msg = user_prompt(req.question, context_str, teacher="", unit_instructions=unit_instructions)
     
-    client = OpenAI(api_key=settings.OPENAI_API_KEY)
-    resp = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": system_msg},
-            {"role": "user", "content": user_msg}
-        ],
-        temperature=0.2
-    )
-    answer = resp.choices[0].message.content
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        # Use configurable model, default to gpt-3.5-turbo
+        chat_model = getattr(settings, 'CHAT_MODEL', 'gpt-3.5-turbo')
+        logger.info(f"Using chat model: {chat_model}")
+        resp = client.chat.completions.create(
+            model=chat_model,
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": user_msg}
+            ],
+            temperature=0.2
+        )
+        answer = resp.choices[0].message.content
+    except Exception as e:
+        logger.error(f"Failed to generate answer with model {chat_model}: {e}", exc_info=True)
+        
+        # Try fallback to gpt-3.5-turbo if primary model fails
+        if chat_model != "gpt-3.5-turbo":
+            try:
+                logger.info(f"Attempting fallback to gpt-3.5-turbo")
+                resp = client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": system_msg},
+                        {"role": "user", "content": user_msg}
+                    ],
+                    temperature=0.2
+                )
+                answer = resp.choices[0].message.content
+                logger.info("Successfully used gpt-3.5-turbo as fallback")
+            except Exception as e2:
+                logger.error(f"Fallback model also failed: {e2}", exc_info=True)
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to generate answer. Primary model ({chat_model}) error: {str(e)}. Fallback (gpt-3.5-turbo) error: {str(e2)}. Please check your OpenAI API key and model access."
+                )
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to generate answer with gpt-3.5-turbo. Error: {str(e)}. Please check your OpenAI API key and model access."
+            )
 
     return {
         "answer": answer,

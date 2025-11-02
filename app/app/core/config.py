@@ -36,7 +36,10 @@ class Settings(BaseSettings):
     CHUNK_OVERLAP: int = 50
     
     # Embeddings (use 'large' for best quality, 'small' for 50% cost savings)
-    EMBED_MODEL: str = "text-embedding-3-large"  # or "text-embedding-3-small"
+    EMBED_MODEL: str = "text-embedding-3-small"  # or "text-embedding-3-small"
+    
+    # Chat model for RAG queries (use 'gpt-3.5-turbo', 'gpt-4o-mini', 'gpt-4o', etc.)
+    CHAT_MODEL: str = "gpt-3.5-turbo"  # Default to gpt-3.5-turbo (widely available)
     
     # Async processing
     PROCESS_IMAGES_ASYNC: bool = True
