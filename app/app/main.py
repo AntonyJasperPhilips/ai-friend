@@ -1,6 +1,8 @@
+from dotenv import load_dotenv
 
 from fastapi import FastAPI
 from app.api import ingest, teacher_notes, retrieve
+load_dotenv()
 app = FastAPI(
     title="AI Friend – Ingestion Engine (v2)",
     version="2.1.0",
