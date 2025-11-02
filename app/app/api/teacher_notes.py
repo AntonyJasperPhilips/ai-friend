@@ -40,7 +40,7 @@ async def notes_pdf(
             with open(tmp_path, "wb") as f: f.write(await pdfFile.read())
         else:
             tmp_path = _download_to_temp(pdfUrl)
-        pages = extract_pages(tmp_path, pageStart, pageEnd)
+        pages = extract_pages(tmp_path, pageStart, pageEnd, language_code=languageCode)
         text, _ = apply_boundaries(pages, startText, endText, startMatchIdx, endMatchIdx)
         latex = find_inline_latex(text)
         chunks = split_semantic(text)  # M-sized chunks

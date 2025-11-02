@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     
     # Async processing
     PROCESS_IMAGES_ASYNC: bool = True
+    
+    # PDF limits
+    MAX_PAGES_PER_REQUEST: int = 500
 
     class Config:
         env_file = ".env"

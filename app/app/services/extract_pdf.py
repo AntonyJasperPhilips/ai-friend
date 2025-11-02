@@ -13,12 +13,21 @@ class PageBlock:
         self.text = text or ""
         self.images = images  # [(xref, bbox)]
 
-def extract_pages(pdf_path:str, page_start:int, page_end:int) -> List[PageBlock]:
+def extract_pages(pdf_path:str, page_start:int, page_end:int, language_code:str="en") -> List[PageBlock]:
     """Extract pages from PDF with text and image metadata."""
     if not os.path.exists(pdf_path): raise FileNotFoundError(f"PDF not found: {pdf_path}")
     doc = fitz.open(pdf_path)
     out = []
     try:
+        # Map language codes to Tesseract language codes
+        lang_map = {
+            "en": "eng", "es": "spa", "fr": "fra", "de": "deu", "it": "ita",
+            "pt": "por", "ru": "rus", "ar": "ara", "hi": "hin", "zh": "chi_sim",
+            "ja": "jpn", "ko": "kor", "th": "tha", "vi": "vie", "tr": "tur",
+            "nl": "nld", "pl": "pol", "uk": "ukr", "he": "heb"
+        }
+        ocr_lang = lang_map.get(language_code.lower(), "eng")
+        
         for pno in range(max(1, page_start)-1, min(page_end, len(doc))):
             page = doc[pno]
             text = page.get_text() or ""
@@ -31,8 +40,8 @@ def extract_pages(pdf_path:str, page_start:int, page_end:int) -> List[PageBlock]
                     img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
                     if settings.TESSERACT_PATH and os.path.exists(settings.TESSERACT_PATH):
                         pytesseract.pytesseract.tesseract_cmd = settings.TESSERACT_PATH
-                    text = pytesseract.image_to_string(img, lang="eng")
-                    logger.info(f"Applied OCR to page {pno+1}")
+                    text = pytesseract.image_to_string(img, lang=ocr_lang)
+                    logger.info(f"Applied OCR to page {pno+1} using language: {ocr_lang}")
                 except Exception as e:
                     logger.warning(f"OCR failed for page {pno+1}: {e}")
             

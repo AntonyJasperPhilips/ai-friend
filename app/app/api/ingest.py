@@ -7,9 +7,9 @@ from pydantic import BaseModel
 from app.services.extract_pdf import extract_pages, apply_boundaries, find_inline_latex, extract_image_data
 from app.services.chunker import split_semantic
 from app.services.embeddings import embed_texts, embed_images, embed_latex_formulas
-from app.services.pine_text import upsert_text_vectors, delete_text_by_filter
-from app.services.pine_image import upsert_image_vectors, delete_images_by_filter
-from app.services.s3util import upload_image_bytes, fetch_image_from_s3
+from app.services.pine_text import upsert_text_vectors, delete_text_by_filter, query_text
+from app.services.pine_image import upsert_image_vectors, delete_images_by_filter, query_images
+from app.services.s3util import upload_image_bytes, fetch_image_from_s3, s3
 from app.services.caption import caption_image_bytes
 from app.services.mathpix import extract_latex_from_image
 from app.core.config import settings
@@ -44,9 +44,23 @@ async def ingest_unit_multipart(
     startMatchIdx: Optional[int] = Form(None),
     endMatchIdx: Optional[int] = Form(None),
     pdfUrl: Optional[str] = Form(None),
-    pdfFile: Optional[UploadFile] = File(None)
+    pdfFile: Optional[UploadFile] = File(None),
+    languageCode: str = Form("en")
 ):
     if not pdfFile and not pdfUrl: raise HTTPException(400, "Provide either pdfFile or pdfUrl")
+    
+    # Validate page range
+    if pageEnd < pageStart:
+        raise HTTPException(400, "pageEnd must be >= pageStart")
+    
+    num_pages = pageEnd - pageStart + 1
+    if num_pages > settings.MAX_PAGES_PER_REQUEST:
+        raise HTTPException(
+            400, 
+            f"Too many pages: {num_pages}. Maximum allowed: {settings.MAX_PAGES_PER_REQUEST}. "
+            f"Please split into smaller units."
+        )
+    
     tmp_path = None
     try:
         if pdfFile:
@@ -56,7 +70,7 @@ async def ingest_unit_multipart(
             tmp_path = _download_to_temp(pdfUrl)
 
         # Extract pages and text
-        pages = extract_pages(tmp_path, pageStart, pageEnd)
+        pages = extract_pages(tmp_path, pageStart, pageEnd, language_code=languageCode)
         logger.info(f"Extracted {len(pages)} pages from PDF")
         text, images = apply_boundaries(pages, startText, endText, startMatchIdx, endMatchIdx)
         latex = find_inline_latex(text)
@@ -376,9 +390,32 @@ async def approve(req:ApproveReq, background_tasks: BackgroundTasks = None):
 async def delete_unit(unitId: str, bookId: str):
     """
     Delete all content for a unit (text chunks, formulas, images).
-    This removes the unit's vectors from Pinecone but does NOT delete S3 files.
+    Removes vectors from Pinecone AND deletes S3 files.
     """
     namespace = str(bookId)
+    
+    # First, get S3 URIs before deleting from Pinecone
+    s3_keys_to_delete = []
+    try:
+        # Query images for this unit to get S3 URIs
+        image_filter = {"unit_id": unitId}
+        img_results = query_images([0.0] * 3072, top_k=1000, metadata_filter=image_filter, namespace=namespace)
+        
+        for match in getattr(img_results, "matches", []):
+            md = match.metadata or {}
+            s3_uri = md.get("s3_uri")
+            if s3_uri and s3_uri.startswith("s3://"):
+                # Extract bucket and key from s3:// URI
+                parts = s3_uri.replace("s3://", "").split("/", 1)
+                if len(parts) == 2:
+                    bucket = parts[0]
+                    key = parts[1]
+                    s3_keys_to_delete.append(key)
+        
+        logger.info(f"Found {len(s3_keys_to_delete)} S3 images to delete for unit {unitId}")
+    except Exception as e:
+        logger.warning(f"Failed to query S3 URIs for unit {unitId}: {e}")
+        s3_keys_to_delete = []
     
     # Delete text chunks, formulas, and teacher notes
     text_filter = {"unit_id": unitId}
@@ -389,7 +426,7 @@ async def delete_unit(unitId: str, bookId: str):
         logger.error(f"Failed to delete text vectors for unit {unitId}: {e}")
         raise HTTPException(500, f"Failed to delete unit: {e}")
     
-    # Delete images
+    # Delete image vectors from Pinecone
     image_filter = {"unit_id": unitId}
     try:
         delete_images_by_filter(image_filter, namespace=namespace)
@@ -398,7 +435,29 @@ async def delete_unit(unitId: str, bookId: str):
         logger.error(f"Failed to delete image vectors for unit {unitId}: {e}")
         raise HTTPException(500, f"Failed to delete unit images: {e}")
     
-    return {"message": f"Unit {unitId} deleted successfully", "unitId": unitId, "bookId": bookId}
+    # Delete S3 files
+    deleted_s3_count = 0
+    if s3_keys_to_delete:
+        try:
+            s3_client = s3()
+            for key in s3_keys_to_delete:
+                try:
+                    s3_client.delete_object(Bucket=settings.S3_BUCKET, Key=key)
+                    deleted_s3_count += 1
+                    logger.debug(f"Deleted S3 object: {key}")
+                except Exception as e:
+                    logger.warning(f"Failed to delete S3 object {key}: {e}")
+            logger.info(f"Deleted {deleted_s3_count} S3 images for unit {unitId}")
+        except Exception as e:
+            logger.error(f"Failed to delete S3 files for unit {unitId}: {e}")
+            # Don't fail the whole request if S3 delete fails
+    
+    return {
+        "message": f"Unit {unitId} deleted successfully",
+        "unitId": unitId,
+        "bookId": bookId,
+        "deletedS3Files": deleted_s3_count
+    }
 
 @router.put("/unit/{unitId}")
 async def update_unit(

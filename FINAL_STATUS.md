@@ -8,51 +8,45 @@ Your AI Friend educational RAG system is **100% complete** and **production-read
 
 ## ✅ What Was Fixed Today
 
-### Challenge 1: Cost Management ✅
-- **Added**: Daily budget tracking ($100/day default)
-- **Added**: Image limit per unit (100 max)
-- **Added**: Cost estimation before processing
-- **Added**: Automatic budget enforcement
-- **Result**: Protected from runaway costs
+### Session 1: Critical Fixes
+- **Cost Management**: Daily budgets, image limits, tracking
+- **Chunk Overlap**: 50-token overlap for better retrieval
+- **Async Processing**: BackgroundTasks for fast responses
+- **Pinecone Optimization**: Configurable embedding models
 
-### Challenge 2: Chunk Overlap ✅
-- **Added**: 50-token overlap between chunks
-- **Result**: Better context retrieval, no information loss
-
-### Challenge 3: Async Processing ✅
-- **Added**: BackgroundTasks for image processing
-- **Result**: Response time: 2-5 minutes → 2 seconds
-
-### Challenge 4: Pinecone Optimization ✅
-- **Added**: Configurable embedding model
-- **Option**: Use `text-embedding-3-small` for 50% cost savings
-- **Result**: Flexible quality vs cost tradeoff
+### Session 2: Moderate Fixes (Just Now)
+- **Large PDF Limit**: 500-page safety limit
+- **Multilingual OCR**: 20+ languages supported
+- **S3 Cleanup**: Automatic file deletion on unit delete
 
 ---
 
 ## 📁 Modified Files
 
-1. ✅ `app/app/core/config.py` - Cost controls, chunking, async config
-2. ✅ `app/app/services/chunker.py` - Overlap implementation
-3. ✅ `app/app/services/embeddings.py` - Configurable model
-4. ✅ `app/app/api/ingest.py` - Cost tracking, async processing, limits
-5. ✅ `app/app/api/retrieve.py` - Unit instructions, formulas, subject fallback
-6. ✅ `app/app/services/pine_text.py` - Delete functions
-7. ✅ `app/app/services/pine_image.py` - Delete functions
-8. ✅ `app/app/services/mathpix.py` - Mathpix integration
-9. ✅ `app/app/services/rag_prompt.py` - RAG prompts
-10. ✅ `README.md` - Updated documentation
+1. ✅ `app/app/core/config.py` - All config options
+2. ✅ `app/app/services/chunker.py` - Chunk overlap
+3. ✅ `app/app/services/embeddings.py` - Configurable embeddings
+4. ✅ `app/app/api/ingest.py` - Upload, approve, delete, update
+5. ✅ `app/app/api/retrieve.py` - RAG queries
+6. ✅ `app/app/services/extract_pdf.py` - Multilingual OCR
+7. ✅ `app/app/services/pine_text.py` - Text vectors
+8. ✅ `app/app/services/pine_image.py` - Image vectors
+9. ✅ `app/app/services/mathpix.py` - Formula extraction
+10. ✅ `app/app/services/rag_prompt.py` - RAG prompts
+11. ✅ `app/app/services/s3util.py` - S3 operations
+12. ✅ `README.md` - Updated documentation
 
 ---
 
 ## 🚀 Ready for Production
 
 **What Works**:
-- ✅ PDF upload with preview
+- ✅ PDF upload with preview (500-page limit)
 - ✅ Text, image, LaTeX extraction
-- ✅ Semantic chunking with overlap
+- ✅ Multilingual OCR (20+ languages)
+- ✅ Semantic chunking with 50-token overlap
 - ✅ Dual Pinecone indexing
-- ✅ S3 image storage
+- ✅ S3 image storage with auto-cleanup
 - ✅ Cost-controlled processing
 - ✅ Async image handling
 - ✅ RAG answer generation
@@ -96,13 +90,18 @@ S3_BUCKET=bucket-class-friend-ai
 
 # Recommended defaults
 MAX_IMAGES_PER_UNIT=100
+MAX_PAGES_PER_REQUEST=500
 OPENAI_API_BUDGET_DAILY=100.0
 ENABLE_COST_TRACKING=true
+CHUNK_SIZE=600
 CHUNK_OVERLAP=50
 PROCESS_IMAGES_ASYNC=true
+ENABLE_IMAGE_CAPTIONS=true
 
 # Optional optimization
-EMBED_MODEL=text-embedding-3-small  # 50% cheaper
+EMBED_MODEL=text-embedding-3-large  # or text-embedding-3-small (50% cheaper)
+USE_MATHPIX=false  # Enable for formula extraction
+OCR_ENABLED=true
 ```
 
 ---
