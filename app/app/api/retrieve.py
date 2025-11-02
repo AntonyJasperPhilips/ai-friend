@@ -1,10 +1,13 @@
 
 from fastapi import APIRouter
 from pydantic import BaseModel
+from openai import OpenAI
 from app.services.embeddings import embed_texts
 from app.services.pine_text import query_text
 from app.services.pine_image import query_images
 from app.services.s3util import presign_get
+from app.services.rag_prompt import system_prompt, user_prompt
+from app.core.config import settings
 
 router = APIRouter(prefix="/qa", tags=["qa"])
 
@@ -46,7 +49,24 @@ async def query(req:QAReq):
             except Exception: url = None
         images.append({"id": m.id, "score": m.score, "caption": md.get("caption"), "page": md.get("page"), "url": url})
 
+    # Generate AI answer using RAG
+    system_msg = system_prompt(req.subject, req.gradeLevel, req.languageCode)
+    context_str = "\n\n".join(book_ctx + note_ctx) if book_ctx or note_ctx else "No relevant material found."
+    user_msg = user_prompt(req.question, context_str, teacher="", unit_instructions="")
+    
+    client = OpenAI(api_key=settings.OPENAI_API_KEY)
+    resp = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": system_msg},
+            {"role": "user", "content": user_msg}
+        ],
+        temperature=0.2
+    )
+    answer = resp.choices[0].message.content
+
     return {
+        "answer": answer,
         "bookContext": book_ctx[:req.topK],
         "teacherNotesContext": note_ctx[:min(3, req.topK)],
         "images": images
